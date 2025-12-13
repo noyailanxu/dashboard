@@ -1,1 +1,170 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="style.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard</title>
+</head>
 
+<body>
+
+<div class="container">
+
+    <!-- CLOCK -->
+    <div class="clock" id="clock"></div>
+
+    <!-- WEATHER -->
+    <div class="weather-box">
+        <div id="weatherIcon" class="icon"></div>
+        <div id="weatherTemp" class="big"></div>
+        <div id="weatherDesc"></div>
+        <div id="weatherRain"></div>
+    </div>
+
+    <!-- WIENER LINIEN -->
+    <div class="wl">
+        <h2>🚇 Wiener Linien</h2>
+
+        <div class="stop">
+            <h3>U4 Meidlinger Hauptstraße → Heiligenstadt</h3>
+            <ul id="u4"></ul>
+        </div>
+
+        <div class="stop">
+            <h3>U6 Niederhofstraße → Floridsdorf</h3>
+            <ul id="u6"></ul>
+        </div>
+    </div>
+
+    <!-- CALENDAR -->
+    <div class="calendar">
+        <h2>📅 לוח שנה</h2>
+        <ul id="calendarList"></ul>
+    </div>
+
+</div>
+
+<script>
+
+// CLOCK
+function updateClock() {
+    const now = new Date();
+    document.getElementById("clock").innerText =
+        now.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+
+// WEATHER
+async function fetchWeather() {
+    const apiKey = "5294bb6140a4bb008551481be287d481";
+
+    const url = `/.netlify/functions/proxy?url=${encodeURIComponent(
+        `https://api.openweathermap.org/data/2.5/weather?lat=48.2082&lon=16.3738&units=metric&appid=${apiKey}&lang=he`
+    )}`;
+
+    const res = await fetch(url);
+    const data = await res.json();
+
+    const temp = Math.round(data.main.temp);
+    const desc = data.weather[0].description;
+    const rain =
+        data.rain && data.rain["1h"]
+            ? Math.round(data.rain["1h"] * 100)
+            : 0;
+
+    const icon = getWeatherIcon(data.weather[0].main);
+
+    document.getElementById("weatherIcon").innerText = icon;
+    document.getElementById("weatherTemp").innerText = `${temp}°`;
+    document.getElementById("weatherDesc").innerText = desc;
+    document.getElementById("weatherRain").innerText = `🌧️ ${rain}%`;
+}
+
+function getWeatherIcon(main) {
+    if (main === "Clear") return "☀️";
+    if (main === "Clouds") return "☁️";
+    if (main === "Rain") return "🌧️";
+    if (main === "Drizzle") return "🌦️";
+    if (main === "Snow") return "❄️";
+    return "⛅";
+}
+
+fetchWeather();
+setInterval(fetchWeather, 10 * 60 * 1000);
+
+
+// WIENER LINIEN
+async function fetchWL(stopId, elementId) {
+    const url = `/.netlify/functions/proxy?url=${encodeURIComponent(
+        `https://www.wienerlinien.at/ogd_realtime/monitor?stopId=${stopId}`
+    )}`;
+
+    const res = await fetch(url);
+    const data = await res.json();
+
+    const ul = document.getElementById(elementId);
+    ul.innerHTML = "";
+
+    const deps =
+        data.data.monitors[0]?.lines[0]?.departures?.departure || [];
+
+    deps.slice(0, 4).forEach(d => {
+        const li = document.createElement("li");
+        li.innerText = `${d.countdown} דקות`;
+        ul.appendChild(li);
+    });
+}
+
+function updateWL() {
+    fetchWL("90200107", "u4"); // U4 Meidlinger Hauptstraße
+    fetchWL("90200420", "u6"); // U6 Niederhofstraße
+}
+updateWL();
+setInterval(updateWL, 30 * 1000);
+
+
+// CALENDAR
+async function fetchCalendar() {
+    const icsUrl =
+        "https://calendar.google.com/calendar/ical/noyailansu%40gmail.com/public/basic.ics";
+
+    const url = `/.netlify/functions/proxy?url=${encodeURIComponent(icsUrl)}`;
+
+    const res = await fetch(url);
+    const text = await res.text();
+
+    const events = text.split("BEGIN:VEVENT");
+
+    const list = document.getElementById("calendarList");
+    list.innerHTML = "";
+
+    events.slice(1, 6).forEach(e => {
+        const summary = e.match(/SUMMARY:(.*)/)?.[1] || "אירוע";
+        const dt = e.match(/DTSTART:(\d+)/)?.[1];
+
+        let date = "";
+        if (dt) {
+            date =
+                dt.substring(6, 8) +
+                "." +
+                dt.substring(4, 6) +
+                "." +
+                dt.substring(0, 4);
+        }
+
+        const li = document.createElement("li");
+        li.innerText = `${summary} — ${date}`;
+        list.appendChild(li);
+    });
+}
+
+fetchCalendar();
+setInterval(fetchCalendar, 5 * 60 * 1000);
+
+</script>
+
+</body>
+</html>
